@@ -353,7 +353,16 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 const int CONNECTED_BIT = BIT0;
 #define JOIN_TIMEOUT_MS (2000)
 
-void wifi_init(const char* ssid, const char* passwd, const char* static_ip, const char* subnet_mask, const char* gateway_addr, const char* ap_ssid, const char* ap_passwd, const char* ap_ip, const char* client_protocol)
+void wifi_init(const char* ssid,
+	       const char* passwd,
+	       const char* static_ip,
+	       const char* subnet_mask,
+	       const char* gateway_addr,
+	       const char* ap_ssid,
+	       const char* ap_passwd,
+	       const char* ap_ip,
+	       const char* ap_protocol,
+	       const char* client_protocol)
 {
     ip_addr_t dnsserver;
     //tcpip_adapter_dns_info_t dnsinfo;
@@ -414,19 +423,21 @@ void wifi_init(const char* ssid, const char* passwd, const char* static_ip, cons
         strlcpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
         strlcpy((char*)wifi_config.sta.password, passwd, sizeof(wifi_config.sta.password));
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA) );
-        // Enable LR protocol in AP
-        ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_AP, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N|WIFI_PROTOCOL_LR));
+	if (strcmp(ap_protocol, "lr") == 0) {
+            ESP_LOGI(TAG, "Enable AP protocol LR");
+            ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_AP, WIFI_PROTOCOL_LR));
+
+	}
+
         if (strcmp(client_protocol, "lr") == 0) {
-            // Set LR protocol only mode in client
             ESP_LOGI(TAG, "Enable client protocol LR");
-            ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCOL_LR));
+	    ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N|WIFI_PROTOCOL_LR));
+	    ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_AP , WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N|WIFI_PROTOCOL_LR));
         }
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config) );
     } else {
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP) );
-        // Enable LR protocol in AP
-        ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_AP, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N|WIFI_PROTOCOL_LR));
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config) );        
     }
 
@@ -462,6 +473,7 @@ char* gateway_addr = NULL;
 char* ap_ssid = NULL;
 char* ap_passwd = NULL;
 char* ap_ip = NULL;
+char* ap_protocol = NULL;
 char* client_protocol = NULL;
 
 char* param_set_default(const char* def_val) {
@@ -513,6 +525,11 @@ void app_main(void)
     if (ap_ip == NULL) {
         ap_ip = param_set_default(DEFAULT_AP_IP);
     }
+    get_config_param_str("ap_protocol", &ap_protocol);
+    if (ap_protocol == NULL) {
+        ap_protocol = param_set_default("");
+    }
+
     get_config_param_str("client_protocol", &client_protocol);
     if (client_protocol == NULL) {
         client_protocol = param_set_default("");
@@ -521,7 +538,7 @@ void app_main(void)
     get_portmap_tab();
 
     // Setup WIFI
-    wifi_init(ssid, passwd, static_ip, subnet_mask, gateway_addr, ap_ssid, ap_passwd, ap_ip, client_protocol);
+    wifi_init(ssid, passwd, static_ip, subnet_mask, gateway_addr, ap_ssid, ap_passwd, ap_ip, ap_protocol, client_protocol);
 
     pthread_t t1;
     pthread_create(&t1, NULL, led_status_thread, NULL);
